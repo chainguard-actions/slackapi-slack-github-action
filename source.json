@@ -1,0 +1,4 @@
+{
+  "upstream": "slackapi/slack-github-action",
+  "version": "v3.0.1"
+}
