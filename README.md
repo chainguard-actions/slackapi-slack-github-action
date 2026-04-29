@@ -1,5 +1,7 @@
 # slackapi/slack-github-action
 
+Send data into Slack using this GitHub Action!
+
 Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/slackapi/slack-github-action](https://github.com/slackapi/slack-github-action).
 
 ## Versions

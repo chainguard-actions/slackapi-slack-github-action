@@ -1,5 +1,6 @@
 {
   "owner": "slackapi",
   "name": "slack-github-action",
-  "visibility": ""
+  "visibility": "internal",
+  "description": "Send data into Slack using this GitHub Action!"
 }
