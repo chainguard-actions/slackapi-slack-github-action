@@ -1,6 +1,12 @@
 # slackapi/slack-github-action
 
-Hardened GitHub Action by [Chainguard](https://www.chainguard.dev).
+Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/slackapi/slack-github-action](https://github.com/slackapi/slack-github-action).
+
+## Versions
+
+| Version | Tag | Upstream commit |
+|---------|-----|-----------------|
+| v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/slack-github-action/tree/v3.0.1) | — |
 
 ## Privacy
 
