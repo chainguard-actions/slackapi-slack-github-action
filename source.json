@@ -1,4 +1,6 @@
 {
-  "upstream": "slackapi/slack-github-action",
-  "version": "v3.0.1"
+  "owner": "slackapi",
+  "repo": "slack-github-action",
+  "version": "",
+  "url": "https://github.com/slackapi/slack-github-action"
 }

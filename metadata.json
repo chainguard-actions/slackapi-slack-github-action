@@ -2,5 +2,6 @@
   "owner": "slackapi",
   "name": "slack-github-action",
   "visibility": "internal",
-  "description": "Send data into Slack using this GitHub Action!"
+  "description": "Send data into Slack using this GitHub Action!",
+  "block_publish": false
 }
