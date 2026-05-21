@@ -8,7 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/slack-github-action/tree/v3.0.1) | — |
+| v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/slackapi--slack-github-action/tree/v3.0.1) | — |
 
 ## Privacy
 
