@@ -1,6 +1,6 @@
 # slackapi/slack-github-action
 
-Send data into Slack using this GitHub Action!
+Post a message, call a Web API method, start a Slack workflow, or run a Slack CLI command from GitHub Actions
 
 Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/slackapi/slack-github-action](https://github.com/slackapi/slack-github-action).
 
