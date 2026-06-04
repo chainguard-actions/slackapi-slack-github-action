@@ -1,4 +1,4 @@
-name: Test payload file path and delimiter
+name: Test webhook with payload
 on:
   workflow_dispatch:
 jobs:
@@ -11,8 +11,7 @@ jobs:
         with:
           webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
           webhook-type: "incoming-webhook"
-          payload-file-path: "${{ github.workspace }}/actions/hardened/slackapi--slack-github-action/v3.0.3/tests/fixtures/payload.json"
-          payload-delimiter: "."
+          payload: '{"text": "Hello from test"}'
           errors: "false"
       - name: Assert time output is set
         env:

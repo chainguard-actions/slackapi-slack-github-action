@@ -1,4 +1,1 @@
-{
-  "text": "Hello from payload file test",
-  "channel": "C0000000000"
-}
+{"text": "Hello from payload file test"}

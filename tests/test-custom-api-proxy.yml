@@ -1,4 +1,4 @@
-name: Test payload file path and delimiter
+name: Test custom API URL and proxy
 on:
   workflow_dispatch:
 jobs:
@@ -9,10 +9,11 @@ jobs:
       - id: action
         uses: .
         with:
-          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
-          webhook-type: "incoming-webhook"
-          payload-file-path: "${{ github.workspace }}/actions/hardened/slackapi--slack-github-action/v3.0.3/tests/fixtures/payload.json"
-          payload-delimiter: "."
+          api: "https://slack.com/api/"
+          method: "chat.postMessage"
+          token: "xoxb-fake-token-for-testing"
+          payload: '{"channel": "C0000000000", "text": "Hello from test"}'
+          proxy: "https://proxy.example.com:8080"
           errors: "false"
       - name: Assert time output is set
         env:

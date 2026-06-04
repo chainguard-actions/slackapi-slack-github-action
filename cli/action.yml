@@ -60,7 +60,7 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        installer=$(mktemp /tmp/install-slack-cli.XXXXXX.sh)
+        installer=$(mktemp /tmp/install-slack-cli-XXXXXX.sh)
         curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
         chmod +x "$installer"
         if [ -n "$SLACK_CLI_VERSION" ]; then
@@ -79,7 +79,7 @@ runs:
         runner.os == 'Windows'
       shell: pwsh
       run: |
-        $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
+        $installer = Join-Path $env:TEMP "install-slack-cli-$([System.IO.Path]::GetRandomFileName()).ps1"
         Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
         if ($env:SLACK_CLI_VERSION) {
           & $installer -v $env:SLACK_CLI_VERSION

@@ -8,26 +8,19 @@
 
 **Harden Agent Version:** `1`
 
-Action **slackapi--slack-github-action/v3.0.3** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
+Action **slackapi--slack-github-action/v3.0.3** was hardened automatically. 1 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### unsafe-shell (severity: high)
 
-The 'Bash Install Slack CLI' step in cli/action.yml pipes a remotely fetched shell script directly to bash without first saving it to a file for inspection: `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`. If the remote URL is compromised or subject to a MITM attack, arbitrary code executes on the runner.
+The 'Bash Install Slack CLI' step in cli/action.yml pipes remote content directly to bash using `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`. The script is never downloaded to a file and verified before execution. Additionally, the 'Pwsh Install Slack CLI' step uses `irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex`, which is the PowerShell equivalent of curl|bash. All three patterns execute remotely-fetched scripts without any integrity verification, making the action vulnerable to supply-chain attacks if the remote server is compromised.
 
 Locations:
 
-- `cli/action.yml:57`
-- `cli/action.yml:59`
-
-### unsafe-shell (severity: high)
-
-The 'Pwsh Install Slack CLI' step in cli/action.yml uses PowerShell's `irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex` pattern, which downloads and immediately executes a remote PowerShell script via Invoke-Expression. This is the PowerShell equivalent of `curl | bash` and carries the same supply-chain risk.
-
-Locations:
-
-- `cli/action.yml:74`
+- `cli/action.yml:63`
+- `cli/action.yml:64`
+- `cli/action.yml:80`
 
 ## Iteration Notes
 
@@ -37,9 +30,7 @@ Locations:
 
 **Notes:**
 
-Fixed two unsafe-shell findings in cli/action.yml:
-
-1. Bash Install Slack CLI: Replaced both `curl -fsSL ... | bash -s` variants (versioned and unversioned) with a safe pattern: download to a mktemp file, then execute with `bash "$installer"`. The temp file is cleaned up afterward.
-
-2. Pwsh Install Slack CLI: Replaced `irm https://... | iex` (PowerShell curl|bash equivalent) with a safe pattern: download via `Invoke-WebRequest -OutFile $installer`, then execute with `& $installer`. The download is now unified for both versioned and unversioned cases, eliminating the dangerous inline execution pattern entirely.
+Fixed all three unsafe pipe-to-shell patterns in cli/action.yml:
+1. Bash step: replaced `curl -fsSL ... | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl -fsSL ... | bash -s` with: download script to a mktemp file, then execute with `bash "$installer"`, then remove the temp file.
+2. Pwsh step: replaced `irm https://... | iex` (in the else branch) with: download via `Invoke-WebRequest -OutFile` to a random temp file, then execute with `& $installer`, then remove the temp file. The already-fixed versioned branch was unified into the same download-then-execute pattern for consistency.
 
