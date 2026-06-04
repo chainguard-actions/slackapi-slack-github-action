@@ -1,0 +1,27 @@
+name: Test method with custom API and proxy
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-fake-token-for-testing"
+          api: "https://slack.com/api/"
+          proxy: ""
+          payload: '{"channel": "C0000000000", "text": "Hello from test"}'
+          errors: "false"
+      - name: Assert time output is set
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time output to be set"
+            exit 1
+          fi
+          echo "PASS"
