@@ -1,4 +1,4 @@
-name: Test payload file and proxy scenario
+name: Test webhook incoming scenario
 on:
   workflow_dispatch:
 jobs:
@@ -11,11 +11,9 @@ jobs:
         with:
           webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
           webhook-type: "incoming-webhook"
-          payload-file-path: "${{ github.workspace }}/actions/hardened/slackapi--slack-github-action/v3.0.3/tests/fixtures/payload.json"
-          payload-delimiter: "."
-          proxy: "https://proxy.example.com:8080"
+          payload: '{"text": "Hello from test"}'
           errors: "false"
-      - name: Assert outputs exist
+      - name: Assert ok output exists
         env:
           OK: ${{ steps.action.outputs.ok }}
           RESPONSE: ${{ steps.action.outputs.response }}

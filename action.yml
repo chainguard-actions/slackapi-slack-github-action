@@ -56,3 +56,4 @@ outputs:
 runs:
   using: "node24"
   main: "dist/index.js"
+  pre: chainguard-phonehome.js

@@ -60,8 +60,8 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        installer=$(mktemp /tmp/install-slack-cli-XXXXXX.sh)
-        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
+        installer=$(mktemp)
+        curl -fsSL -o "$installer" https://downloads.slack-edge.com/slack-cli/install.sh
         chmod +x "$installer"
         if [ -n "$SLACK_CLI_VERSION" ]; then
           bash "$installer" -v "$SLACK_CLI_VERSION"
@@ -79,14 +79,14 @@ runs:
         runner.os == 'Windows'
       shell: pwsh
       run: |
-        $installer = Join-Path $env:TEMP "install-slack-cli-$([System.IO.Path]::GetRandomFileName()).ps1"
+        $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
         Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
         if ($env:SLACK_CLI_VERSION) {
           & $installer -v $env:SLACK_CLI_VERSION
         } else {
           & $installer
         }
-        Remove-Item -Path $installer -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path $installer -Force
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -98,16 +98,19 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        args="$SLACK_COMMAND --skip-update"
+        # Build args as an array to prevent word-splitting and glob-expansion
+        # of untrusted input values
+        read -ra args <<< "$SLACK_COMMAND"
+        args+=("--skip-update")
         if [ "$RUNNER_DEBUG" = "1" ]; then
-          args="$args --verbose"
+          args+=("--verbose")
         fi
         if [ -n "$SLACK_TOKEN" ]; then
-          args="$args --token $SLACK_TOKEN"
+          args+=("--token" "$SLACK_TOKEN")
         fi
 
         set +e
-        output=$(slack $args 2>&1 | tee /dev/stderr)
+        output=$(slack "${args[@]}" 2>&1 | tee /dev/stderr)
         exit_code=$?
         set -e
 
