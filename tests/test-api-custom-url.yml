@@ -1,0 +1,36 @@
+name: Test custom API URL input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          api: "https://slack.com/api/"
+          method: "api.test"
+          token: "xoxb-invalid-token-for-testing"
+          payload: '{"foo": "bar"}'
+          errors: "false"
+      - name: Assert ok output is present
+        env:
+          ACTUAL: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "actual ok: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected ok output to be set"
+            exit 1
+          fi
+          echo "PASS: ok output is set to '$ACTUAL'"
+      - name: Assert time output is present
+        env:
+          ACTUAL: ${{ steps.action.outputs.time }}
+        run: |
+          echo "actual time: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected time output to be set"
+            exit 1
+          fi
+          echo "PASS: time output is set"
