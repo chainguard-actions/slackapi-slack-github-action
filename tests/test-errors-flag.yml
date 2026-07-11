@@ -1,0 +1,34 @@
+name: Test errors flag causes step failure on API error
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-invalid-token-for-testing"
+          payload: |
+            {"channel": "C0000000000", "text": "Hello from test"}
+          errors: "true"
+      - name: Assert step failed due to errors=true with invalid token
+        env:
+          STEP_OUTCOME: ${{ steps.action.outcome }}
+          ACTUAL_OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "step outcome: $STEP_OUTCOME"
+          echo "ok: $ACTUAL_OK"
+          # With errors=true and an invalid token, the step should fail
+          if [ "$STEP_OUTCOME" = "failure" ]; then
+            echo "PASS: step correctly failed with errors=true and invalid token"
+          else
+            echo "FAIL: expected step failure when errors=true and token is invalid"
+            exit 1
+          fi

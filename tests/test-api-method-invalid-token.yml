@@ -1,0 +1,36 @@
+name: Test API method call with invalid token
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-invalid-token-for-testing"
+          payload: |
+            {"channel": "C0000000000", "text": "Hello from test"}
+          errors: "false"
+      - name: Assert ok output is false (invalid token should be rejected)
+        env:
+          ACTUAL_OK: ${{ steps.action.outputs.ok }}
+          ACTUAL_RESPONSE: ${{ steps.action.outputs.response }}
+          STEP_OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "ok: $ACTUAL_OK"
+          echo "response: $ACTUAL_RESPONSE"
+          echo "step outcome: $STEP_OUTCOME"
+          # With an invalid token, Slack API returns ok=false
+          if [ "$ACTUAL_OK" = "false" ] || [ "$STEP_OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly reported failure for invalid token"
+          else
+            echo "FAIL: expected ok=false or step failure for invalid token"
+            exit 1
+          fi

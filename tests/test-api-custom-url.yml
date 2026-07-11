@@ -1,0 +1,34 @@
+name: Test custom API URL input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          method: chat.postMessage
+          api: "https://slack.com/api/"
+          token: "xoxb-invalid-token-for-testing"
+          payload: |
+            channel: "C0000000000"
+            text: "test message"
+          errors: "false"
+      - name: Assert ok output is present
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "ok: $OK"
+          echo "response: $RESPONSE"
+          echo "time: $TIME"
+          # With an invalid token, Slack returns ok=false but the action still runs
+          # The important thing is that the action ran with the api input and produced outputs
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time output to be set"
+            exit 1
+          fi
+          echo "PASS: action ran with custom api input and produced time output"

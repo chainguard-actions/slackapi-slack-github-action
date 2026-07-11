@@ -1,0 +1,33 @@
+name: Test payload-delimiter input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          method: chat.postMessage
+          token: "xoxb-invalid-token-for-testing"
+          payload-delimiter: "#"
+          payload: |
+            channel: "C0000000000"
+            text: "test message"
+          errors: "false"
+      - name: Assert time output is present
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+          TIME: ${{ steps.action.outputs.time }}
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "ok: $OK"
+          echo "time: $TIME"
+          echo "response: $RESPONSE"
+          # The action should run and produce a time output even with an invalid token
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time output to be set"
+            exit 1
+          fi
+          echo "PASS: action ran with payload-delimiter input and produced time output"
