@@ -61,7 +61,7 @@ runs:
       shell: bash
       run: |
         installer=$(mktemp)
-        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
+        curl -fsSL -o "$installer" https://downloads.slack-edge.com/slack-cli/install.sh
         if [ -n "$SLACK_CLI_VERSION" ]; then
           bash "$installer" -v "$SLACK_CLI_VERSION"
         else
@@ -78,15 +78,14 @@ runs:
         runner.os == 'Windows'
       shell: pwsh
       run: |
+        $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
+        Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
         if ($env:SLACK_CLI_VERSION) {
-          $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
-          Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
           & $installer -v $env:SLACK_CLI_VERSION
         } else {
-          $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
-          Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
           & $installer
         }
+        Remove-Item -Path $installer -Force
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -98,13 +97,14 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        read -ra cmd_parts <<< "$SLACK_COMMAND"
-        args=("${cmd_parts[@]}" --skip-update)
+        # Build args as an array to prevent word-splitting and shell injection
+        read -ra args <<< "$SLACK_COMMAND"
+        args+=("--skip-update")
         if [ "$RUNNER_DEBUG" = "1" ]; then
           args+=("--verbose")
         fi
         if [ -n "$SLACK_TOKEN" ]; then
-          args+=(--token "$SLACK_TOKEN")
+          args+=("--token" "$SLACK_TOKEN")
         fi
 
         set +e
@@ -112,12 +112,13 @@ runs:
         exit_code=$?
         set -e
 
-        echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
-        echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
+        ok_val=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')
+        time_val=$(date +%s)
+        printf 'ok=%s\n' "$ok_val" >> "$GITHUB_OUTPUT"
+        printf 'time=%s\n' "$time_val" >> "$GITHUB_OUTPUT"
 
-        safe_output=$(printf '%s' "$output" | tr -d '\r')
         echo "response<<SLACKCLIEOF" >> "$GITHUB_OUTPUT"
-        echo "$safe_output" >> "$GITHUB_OUTPUT"
+        printf '%s\n' "$output" >> "$GITHUB_OUTPUT"
         echo "SLACKCLIEOF" >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then

@@ -1,4 +1,4 @@
-name: Test payload-delimiter input
+name: Test proxy input
 on:
   workflow_dispatch:
 jobs:
@@ -11,8 +11,8 @@ jobs:
         with:
           method: "api.test"
           token: "xoxb-invalid-token-for-testing"
-          payload: "foo=bar"
-          payload-delimiter: "="
+          payload: '{"foo":"bar"}'
+          proxy: "https://proxy.example.com:8080"
           errors: "false"
       - name: Assert outputs are present
         env:
@@ -33,4 +33,4 @@ jobs:
             echo "FAIL: expected ok output to be set"
             exit 1
           fi
-          echo "PASS: action completed with payload-delimiter input"
+          echo "PASS: action completed with proxy input"

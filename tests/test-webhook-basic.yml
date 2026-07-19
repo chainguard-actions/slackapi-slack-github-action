@@ -1,4 +1,4 @@
-name: Test payload file path input
+name: Test basic webhook posting
 on:
   workflow_dispatch:
 jobs:
@@ -6,38 +6,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Create payload file
-        run: |
-          mkdir -p /tmp/slack-test
-          cat > /tmp/slack-test/payload.json << 'EOF'
-          {
-            "text": "Hello from payload file test"
-          }
-          EOF
       - id: action
         uses: .
         with:
           webhook: "https://hooks.slack.com/services/INVALID/INVALID/INVALID"
           webhook-type: "incoming-webhook"
-          payload-file-path: "/tmp/slack-test/payload.json"
+          payload: '{"text": "Hello from test"}'
           errors: "false"
-      - name: Assert outputs are set
+      - name: Assert ok output is present
         env:
           OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
           TIME: ${{ steps.action.outputs.time }}
         run: |
           echo "ok: $OK"
+          echo "response: $RESPONSE"
           echo "time: $TIME"
-          # ok should be set (false with invalid webhook)
+          # With an invalid webhook, ok should be false (not empty)
           if [ -z "$OK" ]; then
-            echo "FAIL: expected ok output to be set"
+            echo "FAIL: expected ok output to be set (true or false)"
             exit 1
           fi
-          echo "ok is set: $OK"
+          echo "ok output is set: $OK"
           # time should always be set
           if [ -z "$TIME" ]; then
             echo "FAIL: expected time output to be set"
             exit 1
           fi
-          echo "time is set: $TIME"
+          echo "time output is set: $TIME"
           echo "PASS"

@@ -1,4 +1,4 @@
-name: Test payload-delimiter input
+name: Test custom API URL input
 on:
   workflow_dispatch:
 jobs:
@@ -9,12 +9,12 @@ jobs:
       - id: action
         uses: .
         with:
+          api: "https://slack.com/api/"
           method: "api.test"
           token: "xoxb-invalid-token-for-testing"
-          payload: "foo=bar"
-          payload-delimiter: "="
+          payload: '{"foo":"bar"}'
           errors: "false"
-      - name: Assert outputs are present
+      - name: Assert ok output is present
         env:
           OK: ${{ steps.action.outputs.ok }}
           RESPONSE: ${{ steps.action.outputs.response }}
@@ -23,14 +23,14 @@ jobs:
           echo "ok: $OK"
           echo "response: $RESPONSE"
           echo "time: $TIME"
-          # The action should complete (errors=false) and produce a time output
+          # The action should complete (errors=false) and produce outputs
           if [ -z "$TIME" ]; then
             echo "FAIL: expected time output to be set"
             exit 1
           fi
-          # ok should be set (true or false)
+          # ok should be false since token is invalid, but the step should not fail
           if [ "$OK" = "" ]; then
-            echo "FAIL: expected ok output to be set"
+            echo "FAIL: expected ok output to be set (true or false)"
             exit 1
           fi
-          echo "PASS: action completed with payload-delimiter input"
+          echo "PASS: action completed with custom api input"

@@ -1,0 +1,49 @@
+name: Test Slack API method call
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-invalid-token-for-testing"
+          payload: |
+            channel: "C0000000000"
+            text: "Hello from test"
+          errors: "false"
+      - name: Assert outputs are set
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "ok: $OK"
+          echo "response: $RESPONSE"
+          echo "time: $TIME"
+          # With an invalid token, ok should be false
+          if [ -z "$OK" ]; then
+            echo "FAIL: expected ok output to be set"
+            exit 1
+          fi
+          if [ "$OK" != "false" ]; then
+            echo "FAIL: expected ok=false with invalid token, got: $OK"
+            exit 1
+          fi
+          echo "ok is false as expected with invalid token"
+          # response should be set (contains error info)
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected response output to be set"
+            exit 1
+          fi
+          echo "response is set: $RESPONSE"
+          # time should always be set
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time output to be set"
+            exit 1
+          fi
+          echo "time is set: $TIME"
+          echo "PASS"

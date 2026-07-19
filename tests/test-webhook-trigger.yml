@@ -1,4 +1,4 @@
-name: Test payload file path input
+name: Test webhook trigger type
 on:
   workflow_dispatch:
 jobs:
@@ -6,28 +6,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Create payload file
-        run: |
-          mkdir -p /tmp/slack-test
-          cat > /tmp/slack-test/payload.json << 'EOF'
-          {
-            "text": "Hello from payload file test"
-          }
-          EOF
       - id: action
         uses: .
         with:
-          webhook: "https://hooks.slack.com/services/INVALID/INVALID/INVALID"
-          webhook-type: "incoming-webhook"
-          payload-file-path: "/tmp/slack-test/payload.json"
+          webhook: "https://hooks.slack.com/triggers/INVALID/INVALID/INVALID"
+          webhook-type: "webhook-trigger"
+          payload: '{"key": "value"}'
           errors: "false"
       - name: Assert outputs are set
         env:
           OK: ${{ steps.action.outputs.ok }}
           TIME: ${{ steps.action.outputs.time }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "ok: $OK"
           echo "time: $TIME"
+          echo "response: $RESPONSE"
           # ok should be set (false with invalid webhook)
           if [ -z "$OK" ]; then
             echo "FAIL: expected ok output to be set"
