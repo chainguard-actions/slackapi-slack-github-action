@@ -60,7 +60,7 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        installer=$(mktemp)
+        installer=$(mktemp /tmp/install-slack-cli.XXXXXX.sh)
         curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
         chmod +x "$installer"
         if [ -n "$SLACK_CLI_VERSION" ]; then
@@ -98,6 +98,7 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
+        # Split the command string into an array to avoid unquoted expansion
         read -ra cmd_args <<< "$SLACK_COMMAND"
         args=("${cmd_args[@]}" "--skip-update")
         if [ "$RUNNER_DEBUG" = "1" ]; then
@@ -131,16 +132,19 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        $cliArgs = "$env:SLACK_COMMAND --skip-update"
+        # Build args as an array to avoid unquoted string splitting
+        $cliArgs = $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ -ne '' }
+        $cliArgs += '--skip-update'
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs = "$cliArgs --verbose"
+          $cliArgs += '--verbose'
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs = "$cliArgs --token $env:SLACK_TOKEN"
+          $cliArgs += '--token'
+          $cliArgs += $env:SLACK_TOKEN
         }
 
         $outputFile = New-TemporaryFile
-        slack $cliArgs.Split(' ') 2>&1 | Tee-Object -FilePath $outputFile.FullName
+        slack @cliArgs 2>&1 | Tee-Object -FilePath $outputFile.FullName
         $exit_code = $LASTEXITCODE
         $output = Get-Content $outputFile.FullName -Raw
 

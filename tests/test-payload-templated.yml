@@ -5,33 +5,34 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      GITHUB_REF: refs/heads/main
-      GITHUB_EVENT_NAME: push
-      CUSTOM_MESSAGE: "Hello from templated test"
+      CUSTOM_MESSAGE: "hello from template"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: action
         uses: .
-        continue-on-error: true
         with:
           method: "chat.postMessage"
           token: "xoxb-invalid-token-for-testing"
-          payload: |
-            {"channel": "C0000000000", "text": "${{ env.CUSTOM_MESSAGE }}"}
+          payload: '{"channel":"C0000000000","text":"${{ env.CUSTOM_MESSAGE }}"}'
           payload-templated: "true"
           errors: "false"
-      - name: Assert action ran with templated payload (fails due to invalid token)
+      - name: Assert ok is false on invalid token
         env:
           ACTUAL_OK: ${{ steps.action.outputs.ok }}
-          STEP_OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "ok: $ACTUAL_OK"
-          echo "step outcome: $STEP_OUTCOME"
-          # With templated payload and invalid token, action should fail at API call
-          # (not at payload parsing), meaning it processed the template successfully
-          if [ "$ACTUAL_OK" = "false" ] || [ "$STEP_OUTCOME" = "failure" ]; then
-            echo "PASS: action processed templated payload and correctly reported failure for invalid token"
-          else
-            echo "FAIL: expected ok=false or step failure for invalid token with templated payload"
+          if [ "$ACTUAL_OK" != "false" ]; then
+            echo "FAIL: expected ok=false but got: $ACTUAL_OK"
             exit 1
           fi
+          echo "PASS: ok is false as expected (invalid token, templating processed)"
+      - name: Assert time output is set
+        env:
+          ACTUAL_TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $ACTUAL_TIME"
+          if [ -z "$ACTUAL_TIME" ]; then
+            echo "FAIL: expected time to be set but got empty"
+            exit 1
+          fi
+          echo "PASS: time is set to $ACTUAL_TIME"

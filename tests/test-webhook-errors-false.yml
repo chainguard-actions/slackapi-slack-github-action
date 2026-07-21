@@ -1,4 +1,4 @@
-name: Test payload from file
+name: Test webhook with errors false
 on:
   workflow_dispatch:
 jobs:
@@ -6,19 +6,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Create payload file
-        run: |
-          cat > /tmp/slack-payload.json << 'EOF'
-          {"text":"hello from payload file","channel":"C0000000000"}
-          EOF
       - id: action
         uses: .
         with:
-          method: "chat.postMessage"
-          token: "xoxb-invalid-token-for-testing"
-          payload-file-path: "/tmp/slack-payload.json"
+          webhook: "https://hooks.slack.com/services/INVALID/INVALID/INVALID"
+          webhook-type: "incoming-webhook"
+          payload: '{"text":"test message"}'
           errors: "false"
-      - name: Assert ok is false on invalid token
+      - name: Assert ok is false on invalid webhook
         env:
           ACTUAL_OK: ${{ steps.action.outputs.ok }}
         run: |
@@ -27,7 +22,7 @@ jobs:
             echo "FAIL: expected ok=false but got: $ACTUAL_OK"
             exit 1
           fi
-          echo "PASS: ok is false as expected (invalid token)"
+          echo "PASS: ok is false as expected"
       - name: Assert time output is set
         env:
           ACTUAL_TIME: ${{ steps.action.outputs.time }}
@@ -38,3 +33,13 @@ jobs:
             exit 1
           fi
           echo "PASS: time is set to $ACTUAL_TIME"
+      - name: Assert response output is set
+        env:
+          ACTUAL_RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $ACTUAL_RESPONSE"
+          if [ -z "$ACTUAL_RESPONSE" ]; then
+            echo "FAIL: expected response to be set but got empty"
+            exit 1
+          fi
+          echo "PASS: response is set"

@@ -1,34 +1,35 @@
-name: Test webhook trigger type with invalid URL
+name: Test webhook trigger type
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_REF: refs/heads/main
-      GITHUB_EVENT_NAME: push
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: action
         uses: .
-        continue-on-error: true
         with:
           webhook: "https://hooks.slack.com/triggers/INVALID/INVALID/INVALID"
-          webhook-type: "trigger"
-          payload: |
-            {"key": "value"}
+          webhook-type: "webhook-trigger"
+          payload: '{"key":"value"}'
           errors: "false"
-      - name: Assert action handled trigger webhook failure gracefully
+      - name: Assert ok is false on invalid webhook trigger
         env:
           ACTUAL_OK: ${{ steps.action.outputs.ok }}
-          STEP_OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "ok: $ACTUAL_OK"
-          echo "step outcome: $STEP_OUTCOME"
-          # With an invalid trigger webhook URL, the action should fail gracefully
-          if [ "$ACTUAL_OK" = "false" ] || [ "$STEP_OUTCOME" = "failure" ]; then
-            echo "PASS: action handled invalid trigger webhook correctly"
-          else
-            echo "FAIL: expected ok=false or step failure for invalid trigger webhook"
+          if [ "$ACTUAL_OK" != "false" ]; then
+            echo "FAIL: expected ok=false but got: $ACTUAL_OK"
             exit 1
           fi
+          echo "PASS: ok is false as expected"
+      - name: Assert time output is set
+        env:
+          ACTUAL_TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $ACTUAL_TIME"
+          if [ -z "$ACTUAL_TIME" ]; then
+            echo "FAIL: expected time to be set but got empty"
+            exit 1
+          fi
+          echo "PASS: time is set to $ACTUAL_TIME"

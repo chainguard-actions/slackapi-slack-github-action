@@ -1,4 +1,4 @@
-name: Test proxy input
+name: Test custom API URL input
 on:
   workflow_dispatch:
 jobs:
@@ -9,13 +9,13 @@ jobs:
       - id: action
         uses: .
         with:
+          api: "https://slack.com/api/"
           method: "api.test"
           token: "xoxb-invalid-token-for-testing"
           payload: '{"foo": "bar"}'
-          proxy: "https://proxy.example.com:8080"
           errors: "false"
         continue-on-error: true
-      - name: Assert step ran with proxy input
+      - name: Assert step ran with custom api input
         env:
           OUTCOME: ${{ steps.action.outcome }}
           TIME: ${{ steps.action.outputs.time }}
@@ -28,4 +28,4 @@ jobs:
             echo "FAIL: step was skipped unexpectedly"
             exit 1
           fi
-          echo "PASS: action ran with proxy input"
+          echo "PASS: action ran with custom api input"
