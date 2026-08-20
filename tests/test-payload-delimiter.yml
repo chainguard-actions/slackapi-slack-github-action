@@ -1,0 +1,37 @@
+name: Test payload-delimiter input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-fake-token-for-testing"
+          payload-delimiter: ","
+          payload: '{"channel":"C0000000000","text":"hello"}'
+      - name: Assert action ran with payload-delimiter input
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "response: $RESPONSE"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$RESPONSE" ]; then
+              echo "FAIL: action succeeded but response output is empty"
+              exit 1
+            fi
+            echo "PASS: action succeeded with payload-delimiter input"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected with fake token)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

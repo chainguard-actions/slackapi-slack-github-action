@@ -1,4 +1,4 @@
-name: Test payload from file
+name: Test webhook trigger type
 on:
   workflow_dispatch:
 jobs:
@@ -7,30 +7,19 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create payload file
-        run: |
-          cat > /tmp/slack-payload.json << 'EOF'
-          {
-            "text": "Hello from payload file test",
-            "username": "GitHub Actions Bot"
-          }
-          EOF
-          echo "Payload file created:"
-          cat /tmp/slack-payload.json
-
-      # Test: using payload-file-path to load payload from a file
-      # The action should read the file and attempt to post to the webhook
-      # Since the webhook is fake, it will fail, but errors=false means the step succeeds
+      # Test: using webhook-type=webhook-trigger (Slack workflow trigger)
+      # This is different from incoming-webhook and tests a different code path
       - id: action
         uses: .
         continue-on-error: true
         with:
-          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
-          webhook-type: "incoming-webhook"
-          payload-file-path: "/tmp/slack-payload.json"
+          webhook: "https://hooks.slack.com/triggers/FAKE/FAKE/FAKE"
+          webhook-type: "webhook-trigger"
+          payload: |
+            {"key": "value", "message": "test trigger payload"}
           errors: "false"
 
-      - name: Assert action processed payload file
+      - name: Assert action ran with webhook-trigger type
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
@@ -42,9 +31,8 @@ jobs:
           echo "time: $TIME"
           echo "response: $RESPONSE"
           # With errors=false, the step should succeed even when Slack returns an error
-          # The key is that the action should have read the file and attempted the request
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action processed payload file and continued with errors=false"
+            echo "PASS: action ran with webhook-trigger type and continued with errors=false"
           elif [ "$OUTCOME" = "failure" ]; then
             echo "FAIL: action exited with error despite errors=false"
             exit 1

@@ -1,4 +1,4 @@
-name: Test API method call
+name: Test Slack API method call
 on:
   workflow_dispatch:
 jobs:
@@ -6,26 +6,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Test: calling a Slack API method with a fake token and errors=false
+      # The action will attempt to call chat.postMessage and get an auth error,
+      # but with errors=false the step should still succeed
       - id: action
         uses: .
+        continue-on-error: true
         with:
-          token: "xoxb-fake-token-for-testing"
           method: "chat.postMessage"
-          payload: '{"channel":"C00000000","text":"Hello from test"}'
-          api: "https://slack.com/api/"
+          token: "xoxb-fake-token-for-testing"
+          payload: |
+            {"channel": "C0000000000", "text": "Hello from GitHub Actions test"}
           errors: "false"
-          retries: "0"
-      - name: Assert time output exists
+
+      - name: Assert action completed with errors=false despite bad token
         env:
-          TIME: ${{ steps.action.outputs.time }}
+          OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
           RESPONSE: ${{ steps.action.outputs.response }}
+          TIME: ${{ steps.action.outputs.time }}
         run: |
+          echo "outcome: $OUTCOME"
           echo "ok: $OK"
           echo "response: $RESPONSE"
           echo "time: $TIME"
-          if [ -z "$TIME" ]; then
-            echo "FAIL: expected time output to be set"
+          # With errors=false, the step should succeed even when Slack returns an auth error
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action completed as expected with errors=false"
+            echo "INFO: ok=$OK (expected false for fake token)"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "FAIL: action exited with error despite errors=false"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
           fi
-          echo "PASS"

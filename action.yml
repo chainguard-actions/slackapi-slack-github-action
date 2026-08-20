@@ -54,6 +54,6 @@ outputs:
   ts:
     description: "The timestamp of a Slack message or event in the response."
 runs:
+  pre: chainguard-phonehome.js
   using: "node24"
   main: "dist/index.js"
-  pre: chainguard-phonehome.js

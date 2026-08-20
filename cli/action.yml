@@ -60,14 +60,14 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        installer=$(mktemp)
-        curl -fsSL -o "$installer" https://downloads.slack-edge.com/slack-cli/install.sh
+        INSTALL_SCRIPT="$(mktemp)"
+        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$INSTALL_SCRIPT"
         if [ -n "$SLACK_CLI_VERSION" ]; then
-          bash "$installer" -v "$SLACK_CLI_VERSION"
+          bash "$INSTALL_SCRIPT" -v "$SLACK_CLI_VERSION"
         else
-          bash "$installer"
+          bash "$INSTALL_SCRIPT"
         fi
-        rm -f "$installer"
+        rm -f "$INSTALL_SCRIPT"
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -85,7 +85,7 @@ runs:
         } else {
           & $installer
         }
-        Remove-Item -Path $installer -Force
+        Remove-Item -Force $installer
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -97,14 +97,17 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        # Build args as an array to prevent shell metacharacter injection
-        read -ra args <<< "$SLACK_COMMAND"
-        args+=("--skip-update")
+        args=()
+        if [ -n "$SLACK_COMMAND" ]; then
+          while IFS= read -r -d '' t; do args+=("$t"); done \
+            < <(printf '%s' "$SLACK_COMMAND" | xargs printf '%s\0')
+        fi
+        args+=(--skip-update)
         if [ "$RUNNER_DEBUG" = "1" ]; then
-          args+=("--verbose")
+          args+=(--verbose)
         fi
         if [ -n "$SLACK_TOKEN" ]; then
-          args+=("--token" "$SLACK_TOKEN")
+          args+=(--token "$SLACK_TOKEN")
         fi
 
         set +e
@@ -115,9 +118,8 @@ runs:
         echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
         echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-        safe_output=$(printf '%s' "$output" | tr -d '\r')
         echo "response<<SLACKCLIEOF" >> "$GITHUB_OUTPUT"
-        echo "$safe_output" >> "$GITHUB_OUTPUT"
+        echo "$output" >> "$GITHUB_OUTPUT"
         echo "SLACKCLIEOF" >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then
@@ -132,15 +134,22 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        # Build args as an array to prevent shell metacharacter injection
-        [string[]]$cliArgs = $env:SLACK_COMMAND -split '\s+'
-        $cliArgs += "--skip-update"
+        $cliArgs = [System.Collections.Generic.List[string]]::new()
+        if ($env:SLACK_COMMAND) {
+          # Split the command string into tokens using simple whitespace splitting,
+          # treating the value as literal data (not as PowerShell code to evaluate).
+          # This mirrors the bash step's use of xargs for safe argument tokenization.
+          $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ -ne '' } | ForEach-Object {
+            $cliArgs.Add($_)
+          }
+        }
+        $cliArgs.Add("--skip-update")
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs += "--verbose"
+          $cliArgs.Add("--verbose")
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs += "--token"
-          $cliArgs += $env:SLACK_TOKEN
+          $cliArgs.Add("--token")
+          $cliArgs.Add($env:SLACK_TOKEN)
         }
 
         $outputFile = New-TemporaryFile
@@ -151,9 +160,8 @@ runs:
         "ok=$( if ($exit_code -eq 0) { 'true' } else { 'false' } )" >> $env:GITHUB_OUTPUT
         "time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_OUTPUT
 
-        $safe_output = $output -replace "`r`n|`n|`r", "`n"
         "response<<SLACKCLIEOF" >> $env:GITHUB_OUTPUT
-        $safe_output >> $env:GITHUB_OUTPUT
+        $output >> $env:GITHUB_OUTPUT
         "SLACKCLIEOF" >> $env:GITHUB_OUTPUT
 
         if ($exit_code -ne 0) {
