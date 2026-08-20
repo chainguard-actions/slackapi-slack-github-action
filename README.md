@@ -8,7 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/slackapi-slack-github-action/tree/v3.0.1) | — |
+| v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/slackapi-slack-github-action/tree/v3.0.1) | [`af78098`](https://github.com/slackapi/slack-github-action/commit/af78098f536edbc4de71162a307590698245be95) |
 | v3.0.3 | [`v3.0.3`](https://github.com/chainguard-actions/slackapi-slack-github-action/tree/v3.0.3) | [`45a88b9`](https://github.com/slackapi/slack-github-action/commit/45a88b9581bfab2566dc881e2cd66d334e621e2c) |
 | v3.0.4 | [`v3.0.4`](https://github.com/chainguard-actions/slackapi-slack-github-action/tree/v3.0.4) | [`fc46ded`](https://github.com/slackapi/slack-github-action/commit/fc46ded2fc4d7f11bfa62864526f920cf1a1167d) |
 | v3.0.5 | [`v3.0.5`](https://github.com/chainguard-actions/slackapi-slack-github-action/tree/v3.0.5) | [`0d95c9a`](https://github.com/slackapi/slack-github-action/commit/0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc) |
