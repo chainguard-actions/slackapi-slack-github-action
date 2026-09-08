@@ -1,0 +1,48 @@
+name: Test token input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake slack binary
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/slack" << 'EOF'
+          #!/bin/sh
+          echo "args: $*"
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/slack"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+          token: "xoxb-test-token-12345"
+
+      - name: Assert ok is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true, got '$OK'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert response contains token flag
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q "\-\-token"; then
+            echo "PASS: --token flag found in response"
+          else
+            echo "FAIL: expected --token flag in response, got: $RESPONSE"
+            exit 1
+          fi
