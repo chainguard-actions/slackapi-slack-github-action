@@ -93,7 +93,7 @@ runs:
         } else {
           & $installer
         }
-        Remove-Item -Path $installer -Force
+        Remove-Item -Force $installer
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
     - name: Bash Run Slack CLI command
@@ -125,9 +125,8 @@ runs:
         echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
         echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-        echo "response<<SLACKCLIEOF" >> "$GITHUB_OUTPUT"
-        echo "$output" >> "$GITHUB_OUTPUT"
-        echo "SLACKCLIEOF" >> "$GITHUB_OUTPUT"
+        EOF_DELIMITER="SLACKCLIEOF_$(openssl rand -hex 16)"
+        printf 'response<<%s\n%s\n%s\n' "$EOF_DELIMITER" "$output" "$EOF_DELIMITER" >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then
           exit $exit_code
@@ -140,19 +139,14 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        $cliArgs = [System.Collections.Generic.List[string]]::new()
-        if ($env:SLACK_COMMAND) {
-          foreach ($token in ($env:SLACK_COMMAND -split '\s+')) {
-            if ($token -ne '') { $cliArgs.Add($token) }
-          }
-        }
-        $cliArgs.Add('--skip-update')
+        $cliArgs = $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ -ne '' }
+        $cliArgs += '--skip-update'
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs.Add('--verbose')
+          $cliArgs += '--verbose'
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs.Add('--token')
-          $cliArgs.Add($env:SLACK_TOKEN)
+          $cliArgs += '--token'
+          $cliArgs += $env:SLACK_TOKEN
         }
 
         $outputFile = New-TemporaryFile
@@ -163,9 +157,10 @@ runs:
         "ok=$( if ($exit_code -eq 0) { 'true' } else { 'false' } )" >> $env:GITHUB_OUTPUT
         "time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_OUTPUT
 
-        "response<<SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eofDelimiter = "SLACKCLIEOF_" + [System.Guid]::NewGuid().ToString("N")
+        "response<<$eofDelimiter" >> $env:GITHUB_OUTPUT
         $output >> $env:GITHUB_OUTPUT
-        "SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eofDelimiter >> $env:GITHUB_OUTPUT
 
         if ($exit_code -ne 0) {
           exit $exit_code

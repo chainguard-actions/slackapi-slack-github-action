@@ -1,0 +1,66 @@
+name: Test CLI already exists on PATH
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install a fake Slack CLI on PATH before the action runs
+        run: |
+          # Place a fake slack binary directly on PATH so the action skips installation
+          mkdir -p /tmp/pre-existing-slack/bin
+          cat > /tmp/pre-existing-slack/bin/slack << 'SLACKEOF'
+          #!/bin/sh
+          echo "Pre-existing Slack CLI output for: $*"
+          exit 0
+          SLACKEOF
+          chmod +x /tmp/pre-existing-slack/bin/slack
+          echo "/tmp/pre-existing-slack/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+
+      - name: Assert ok output is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true but got '$OK'"
+            exit 1
+          fi
+          echo "PASS: ok=true"
+
+      - name: Assert response contains pre-existing CLI output
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected non-empty response"
+            exit 1
+          fi
+          if ! echo "$RESPONSE" | grep -q "Pre-existing"; then
+            echo "FAIL: expected output from pre-existing CLI, got: $RESPONSE"
+            exit 1
+          fi
+          echo "PASS: pre-existing CLI was used"
+
+      - name: Assert time output is a unix timestamp
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected non-empty time"
+            exit 1
+          fi
+          if ! echo "$TIME" | grep -qE '^[0-9]+$'; then
+            echo "FAIL: expected numeric unix timestamp, got '$TIME'"
+            exit 1
+          fi
+          echo "PASS: time is a valid unix timestamp"

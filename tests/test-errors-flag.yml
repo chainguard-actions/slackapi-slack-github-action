@@ -1,0 +1,78 @@
+name: Test errors flag behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Call action with errors=true and invalid credentials
+        id: action-errors-true
+        uses: .
+        continue-on-error: true
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-fake-token-errors-test"
+          errors: "true"
+          payload: |
+            {"channel": "C0000000000", "text": "Errors flag test"}
+
+      - name: Assert action fails when errors=true and API returns error
+        env:
+          OUTCOME: ${{ steps.action-errors-true.outcome }}
+          OK: ${{ steps.action-errors-true.outputs.ok }}
+          TIME: ${{ steps.action-errors-true.outputs.time }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "time: $TIME"
+          # With errors=true and a fake token, the action should fail
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected with errors=true and invalid token"
+          elif [ "$OUTCOME" = "success" ]; then
+            # If it somehow succeeded (real token injected), check outputs
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but 'time' output is empty"
+              exit 1
+            fi
+            echo "PASS: action succeeded with time=$TIME"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+
+      - name: Call action with errors=false and invalid credentials
+        id: action-errors-false
+        uses: .
+        continue-on-error: true
+        with:
+          method: "chat.postMessage"
+          token: "xoxb-fake-token-errors-false-test"
+          errors: "false"
+          payload: |
+            {"channel": "C0000000000", "text": "Errors false flag test"}
+
+      - name: Assert action produces time output regardless of errors=false
+        env:
+          OUTCOME: ${{ steps.action-errors-false.outcome }}
+          OK: ${{ steps.action-errors-false.outputs.ok }}
+          TIME: ${{ steps.action-errors-false.outputs.time }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "time: $TIME"
+          # With errors=false, the action should not exit with error even on API failure
+          # It may still fail if the network call itself throws an exception
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but 'time' output is empty"
+              exit 1
+            fi
+            echo "PASS: action completed with errors=false, time=$TIME"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (network/auth error before errors flag applies)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

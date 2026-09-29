@@ -10,13 +10,13 @@
 
 **Harden Agent Version:** `2`
 
-Action **slackapi--slack-github-action--cli/v4.0.0** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
+Action **slackapi--slack-github-action--cli/v4.0.0** was hardened automatically. 5 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### unsafe-shell (severity: high)
 
-The 'Bash Install Slack CLI' step pipes a remote install script directly to bash without first downloading it to a file. Two occurrences: (1) `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` and (2) `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`. This allows a compromised or MITM'd remote server to execute arbitrary code on the runner.
+The 'Bash Install Slack CLI' step pipes a remote install script directly to bash without downloading it first: `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`. This allows a compromised or MITM'd remote server to execute arbitrary code on the runner.
 
 Locations:
 
@@ -25,7 +25,7 @@ Locations:
 
 ### unsafe-shell (severity: high)
 
-The 'Pwsh Install Slack CLI' step uses `irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex`, which is the PowerShell equivalent of `curl | bash`. It fetches a remote script and immediately executes it via Invoke-Expression without saving to disk first, allowing arbitrary code execution if the remote content is compromised or intercepted.
+The 'Pwsh Install Slack CLI' step uses the PowerShell equivalent of curl|bash: `irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex`. This pipes a remotely fetched script directly into PowerShell's Invoke-Expression, allowing arbitrary code execution if the remote content is compromised or intercepted.
 
 Locations:
 
@@ -33,37 +33,42 @@ Locations:
 
 ### script-injection (severity: high)
 
-Sub-rule (b): In the 'Bash Run Slack CLI command' step, the env vars `$SLACK_COMMAND` (from `inputs.command`) and `$SLACK_TOKEN` (from `inputs.token`) are expanded unquoted inside shell string concatenation. Specifically: `args="$SLACK_COMMAND --skip-update"` (line 96) and `args="$args --token $SLACK_TOKEN"` (line 101). An attacker-controlled input containing shell metacharacters (`;`, `|`, `$(...)`, etc.) can break out of the string and inject arbitrary shell commands.
+Sub-rule (b): In the 'Bash Run Slack CLI command' step, the env var `$SLACK_COMMAND` (sourced from `inputs.command`) is used unquoted when building the args string: `args="$SLACK_COMMAND --skip-update"`, and then `$args` is passed unquoted to the shell: `output=$(slack $args 2>&1 | tee /dev/stderr)`. An attacker-controlled `inputs.command` value containing shell metacharacters (`;`, `|`, `$(...)`, etc.) can break out of the intended command and execute arbitrary shell code.
 
 Locations:
 
 - `action.yml:96`
-- `action.yml:101`
+- `action.yml:105`
 
-### script-injection (severity: high)
+### github-env-injection (severity: high)
 
-Sub-rule (b): In the 'Pwsh Run Slack CLI command' step, `$env:SLACK_COMMAND` (from `inputs.command`) and `$env:SLACK_TOKEN` (from `inputs.token`) are interpolated unquoted into PowerShell string concatenation: `$cliArgs = "$env:SLACK_COMMAND --skip-update"` (line 123) and `$cliArgs = "$cliArgs --token $env:SLACK_TOKEN"` (line 127). Attacker-controlled values can inject additional CLI arguments or PowerShell metacharacters.
+In the 'Bash Run Slack CLI command' step, the variable `$output` (CLI output derived from user-controlled `$SLACK_COMMAND` / `inputs.command`) is written to `$GITHUB_OUTPUT` via a heredoc without sanitization (`printf '%s' ... | tr -d '\n\r'`): `echo "$output" >> "$GITHUB_OUTPUT"`. If the CLI output contains newlines with content matching `key=value` patterns, or contains the heredoc delimiter `SLACKCLIEOF`, an attacker can inject arbitrary entries into GITHUB_OUTPUT, potentially overwriting other step outputs.
 
 Locations:
 
-- `action.yml:123`
-- `action.yml:127`
+- `action.yml:112`
+- `action.yml:113`
+
+### github-env-injection (severity: high)
+
+In the 'Pwsh Run Slack CLI command' step, the variable `$output` (CLI output derived from user-controlled `$env:SLACK_COMMAND` / `inputs.command`) is written to `$env:GITHUB_OUTPUT` without sanitization: `$output >> $env:GITHUB_OUTPUT`. Newlines in the output can inject additional key=value pairs or break the heredoc delimiter, allowing an attacker to manipulate subsequent step outputs.
+
+Locations:
+
+- `action.yml:138`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** unsafe-shell, script-injection
+**Fixes applied:** unsafe-shell, script-injection, github-env-injection
 
 **Notes:**
 
-Fixed all four findings in action.yml:
-
-1. Bash Install Slack CLI (unsafe-shell): Replaced both `curl | bash` pipe patterns with download-then-execute: `curl -fsSL ... -o "$INSTALL_SCRIPT"` followed by `bash "$INSTALL_SCRIPT" [-v "$SLACK_CLI_VERSION"]`. Dropped the `--` per the rules (it was the shell's option terminator, not the script's).
-
-2. Pwsh Install Slack CLI (unsafe-shell): Replaced `irm ... | iex` with `Invoke-WebRequest -Uri ... -OutFile $installer` followed by `& $installer [-v $env:SLACK_CLI_VERSION]`. Both branches now download first then execute.
-
-3. Bash Run Slack CLI command (script-injection): Replaced string concatenation of `$SLACK_COMMAND` and `$SLACK_TOKEN` with a bash array. `$SLACK_COMMAND` is tokenized via xargs (quote-aware) into `cmd_args`; `$SLACK_TOKEN` is appended as `--token "$SLACK_TOKEN"`. Command invoked as `slack "${cmd_args[@]}"`.
-
-4. Pwsh Run Slack CLI command (script-injection): Replaced PowerShell string concatenation with a `[System.Collections.Generic.List[string]]` array. `$env:SLACK_COMMAND` is split on whitespace into individual tokens; `$env:SLACK_TOKEN` is added as two separate elements. Command invoked with splatting `slack @cliArgs`.
+Fixed all 5 findings in action.yml:
+1. Bash Install Slack CLI: Replaced `curl ... | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl ... | bash -s` with download-to-tempfile then execute pattern (mktemp + curl -o + bash script). Dropped '--' per instructions since it was the shell's option terminator, not the script's.
+2. Pwsh Install Slack CLI: Replaced `irm ... | iex` else-branch with Invoke-WebRequest download to temp file then `& $installer` execution.
+3. Bash Run Slack CLI command (script-injection): Tokenized $SLACK_COMMAND via xargs into a bash array using the NUL-delimited read loop pattern, then used `slack "${cmd_args[@]}"` for safe execution with proper argument boundaries.
+4. Bash Run Slack CLI command (github-env-injection): Replaced fixed heredoc delimiter `SLACKCLIEOF` with a random `SLACKCLIEOF_$(openssl rand -hex 16)` to prevent attacker-controlled output from injecting the delimiter.
+5. Pwsh Run Slack CLI command (github-env-injection): Replaced fixed heredoc delimiter with a random GUID-based `SLACKCLIEOF_$([System.Guid]::NewGuid().ToString("N"))` delimiter. Also improved PowerShell arg handling to use an array with splatting (@cliArgs) instead of string splitting.
 

@@ -1,0 +1,99 @@
+name: Test token passing
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake curl and fake Slack CLI that captures args
+        run: |
+          # Create a fake install script that installs a fake slack binary
+          # This fake slack records its arguments to a file for later inspection
+          mkdir -p /tmp/fake-slack-setup
+          cat > /tmp/fake-install-slack.sh << 'INSTALLEOF'
+          #!/bin/sh
+          mkdir -p "$HOME/.slack/bin"
+          cat > "$HOME/.slack/bin/slack" << 'SLACKEOF'
+          #!/bin/sh
+          echo "args: $*" > /tmp/slack-args.txt
+          echo "Slack CLI (fake) ran with args: $*"
+          exit 0
+          SLACKEOF
+          chmod +x "$HOME/.slack/bin/slack"
+          INSTALLEOF
+          chmod +x /tmp/fake-install-slack.sh
+
+          # Create a fake curl that serves the install script and honors -o flag
+          mkdir -p /tmp/fake-bin
+          cat > /tmp/fake-bin/curl << 'CURLEOF'
+          #!/bin/sh
+          out=""
+          prev=""
+          for arg in "$@"; do
+            case "$prev" in
+              -o|--output) out="$arg" ;;
+            esac
+            prev="$arg"
+          done
+          case "$*" in
+            *slack-edge.com*install.sh*)
+              if [ -n "$out" ]; then
+                cat /tmp/fake-install-slack.sh > "$out"
+              else
+                cat /tmp/fake-install-slack.sh
+              fi
+              exit 0
+              ;;
+          esac
+          exec /usr/bin/curl "$@"
+          CURLEOF
+          chmod +x /tmp/fake-bin/curl
+          echo "/tmp/fake-bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+          token: "xoxp-test-token-12345"
+
+      - name: Assert ok output is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true but got '$OK'"
+            exit 1
+          fi
+          echo "PASS: ok=true"
+
+      - name: Assert token was passed to CLI
+        run: |
+          if [ ! -f /tmp/slack-args.txt ]; then
+            echo "FAIL: slack was not invoked (args file not found)"
+            exit 1
+          fi
+          ARGS=$(cat /tmp/slack-args.txt)
+          echo "slack args: $ARGS"
+          if ! echo "$ARGS" | grep -q "\-\-token"; then
+            echo "FAIL: expected --token flag in slack args"
+            exit 1
+          fi
+          if ! echo "$ARGS" | grep -q "xoxp-test-token-12345"; then
+            echo "FAIL: expected token value in slack args"
+            exit 1
+          fi
+          echo "PASS: token was passed correctly"
+
+      - name: Assert response contains output
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected non-empty response"
+            exit 1
+          fi
+          echo "PASS: response is non-empty"
