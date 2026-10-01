@@ -1,0 +1,102 @@
+name: Test version-specific Slack CLI installation
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up fake install script and curl mock for versioned install
+        run: |
+          # Create a fake install script that installs a versioned fake slack binary
+          cat > /tmp/fake-install-versioned.sh << 'INSTALLEOF'
+          #!/bin/bash
+          # Parse -v flag for version
+          VERSION=""
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              -v) VERSION="$2"; shift 2 ;;
+              *) shift ;;
+            esac
+          done
+          mkdir -p "$HOME/.slack/bin"
+          cat > "$HOME/.slack/bin/slack" << SLACKEOF
+          #!/bin/bash
+          echo "Slack CLI version ${VERSION:-latest}"
+          exit 0
+          SLACKEOF
+          chmod +x "$HOME/.slack/bin/slack"
+          INSTALLEOF
+          chmod +x /tmp/fake-install-versioned.sh
+
+          # Create a fake curl that serves the versioned install script and honors -o flag
+          mkdir -p /tmp/fake-bin-versioned
+          cat > /tmp/fake-bin-versioned/curl << 'CURLEOF'
+          #!/bin/sh
+          out=""
+          prev=""
+          for arg in "$@"; do
+            case "$prev" in
+              -o|--output) out="$arg" ;;
+            esac
+            prev="$arg"
+          done
+          case "$*" in
+            *slack-edge*install*)
+              if [ -n "$out" ]; then
+                cat /tmp/fake-install-versioned.sh > "$out"
+              else
+                cat /tmp/fake-install-versioned.sh
+              fi
+              exit 0
+              ;;
+          esac
+          exec /usr/bin/curl "$@"
+          CURLEOF
+          chmod +x /tmp/fake-bin-versioned/curl
+
+          echo "/tmp/fake-bin-versioned" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+          version: "2.26.0"
+
+      - name: Assert ok is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true, got '$OK'"
+            exit 1
+          fi
+          echo "PASS: ok=true"
+
+      - name: Assert response is non-empty
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected non-empty response"
+            exit 1
+          fi
+          echo "PASS: response is non-empty"
+
+      - name: Assert time is a valid unix epoch
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected non-empty time"
+            exit 1
+          fi
+          if ! echo "$TIME" | grep -qE '^[0-9]+$'; then
+            echo "FAIL: time '$TIME' is not a numeric unix epoch"
+            exit 1
+          fi
+          echo "PASS: time is a valid unix epoch"

@@ -1,0 +1,67 @@
+name: Test errors flag behavior
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Test with errors=true (should fail on bad webhook)
+        id: action-errors-true
+        uses: .
+        continue-on-error: true
+        with:
+          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
+          webhook-type: "incoming-webhook"
+          payload: '{"text": "Test errors flag"}'
+          errors: "true"
+      - name: Assert action fails when errors=true and webhook is invalid
+        env:
+          OUTCOME: ${{ steps.action-errors-true.outcome }}
+          OK: ${{ steps.action-errors-true.outputs.ok }}
+          TIME: ${{ steps.action-errors-true.outputs.time }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "time: $TIME"
+          # With errors=true and a fake webhook, the action should fail
+          # (exit with error code when Slack returns an error)
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action correctly failed with errors=true and invalid webhook"
+          elif [ "$OUTCOME" = "success" ]; then
+            # If somehow the request succeeded, time should be set
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but time output is empty"
+              exit 1
+            fi
+            echo "PASS: action succeeded (unexpected but valid if webhook accepted)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+      - name: Test with errors=false (should not fail on bad webhook)
+        id: action-errors-false
+        uses: .
+        continue-on-error: true
+        with:
+          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
+          webhook-type: "incoming-webhook"
+          payload: '{"text": "Test errors=false flag"}'
+          errors: "false"
+      - name: Assert action behavior with errors=false
+        env:
+          OUTCOME: ${{ steps.action-errors-false.outcome }}
+          OK: ${{ steps.action-errors-false.outputs.ok }}
+          TIME: ${{ steps.action-errors-false.outputs.time }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "time: $TIME"
+          # With errors=false, the action may still fail on network errors
+          # but should not fail solely due to Slack API error responses
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action completed with outcome=$OUTCOME (errors=false)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

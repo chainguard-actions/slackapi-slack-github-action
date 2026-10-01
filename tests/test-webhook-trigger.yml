@@ -1,4 +1,4 @@
-name: Test webhook basic usage
+name: Test webhook trigger type
 on:
   workflow_dispatch:
 jobs:
@@ -10,10 +10,12 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
-          webhook-type: "incoming-webhook"
-          payload: '{"text": "Hello from test"}'
-      - name: Assert outputs are set
+          webhook: "https://hooks.slack.com/triggers/FAKE/FAKE/FAKE"
+          webhook-type: "webhook-trigger"
+          payload: |
+            key: "value"
+            message: "Hello from webhook trigger test"
+      - name: Assert webhook trigger ran
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
@@ -24,17 +26,15 @@ jobs:
           echo "ok: $OK"
           echo "time: $TIME"
           echo "response: $RESPONSE"
-          # The action should either succeed or fail gracefully
+          # With a fake trigger webhook, the action should fail gracefully
           if [ "$OUTCOME" = "success" ]; then
-            # If somehow it succeeded, ok should be true and time should be set
             if [ -z "$TIME" ]; then
               echo "FAIL: action succeeded but time output is empty"
               exit 1
             fi
             echo "PASS: action succeeded with time=$TIME"
           elif [ "$OUTCOME" = "failure" ]; then
-            # Graceful failure with a fake webhook is expected
-            echo "PASS: action failed gracefully with fake webhook (expected)"
+            echo "PASS: action failed gracefully with fake trigger webhook (expected)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

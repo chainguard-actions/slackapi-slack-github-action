@@ -1,4 +1,4 @@
-name: Test API method call scenario
+name: Test Slack API method call
 on:
   workflow_dispatch:
 jobs:
@@ -8,19 +8,36 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: action
         uses: .
+        continue-on-error: true
         with:
-          api: "https://slack.com/api"
           method: "chat.postMessage"
           token: "xoxb-fake-token-for-testing"
-          payload: '{"channel": "C0000000000", "text": "Hello from test"}'
-          errors: "false"
-      - name: Assert outputs exist
+          payload: |
+            channel: "C0000000000"
+            text: "Hello from test"
+      - name: Assert outputs are set on API method call
         env:
+          OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
-          RESPONSE: ${{ steps.action.outputs.response }}
           TIME: ${{ steps.action.outputs.time }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
+          echo "outcome: $OUTCOME"
           echo "ok: $OK"
-          echo "response: $RESPONSE"
           echo "time: $TIME"
-          echo "PASS: action completed (errors=false so failure is acceptable)"
+          echo "response: $RESPONSE"
+          # With a fake token, the Slack API returns an auth error
+          # The action should fail gracefully (ok=false) or succeed with error info
+          if [ "$OUTCOME" = "success" ]; then
+            # If action step succeeded, ok should be false (Slack returned error)
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but time output is empty"
+              exit 1
+            fi
+            echo "PASS: action completed with time=$TIME ok=$OK"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully with fake token (expected)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

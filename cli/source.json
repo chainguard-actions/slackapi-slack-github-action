@@ -2,6 +2,7 @@
   "owner": "slackapi",
   "repo": "slack-github-action",
   "version": "v3.0.3",
+  "path": "cli",
   "commit_sha": "45a88b9581bfab2566dc881e2cd66d334e621e2c",
   "url": "https://github.com/slackapi/slack-github-action",
   "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",

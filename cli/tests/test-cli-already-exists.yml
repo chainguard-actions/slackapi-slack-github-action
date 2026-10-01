@@ -1,0 +1,67 @@
+name: Test when Slack CLI already exists on PATH
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake slack binary on PATH before action runs
+        run: |
+          # Place a fake slack binary somewhere already on PATH
+          # so the action's "command -v slack" check finds it and skips install
+          sudo mkdir -p /usr/local/bin
+          sudo tee /usr/local/bin/slack > /dev/null << 'SLACKEOF'
+          #!/bin/bash
+          echo "Slack CLI already installed"
+          echo "Running command: $*"
+          exit 0
+          SLACKEOF
+          sudo chmod +x /usr/local/bin/slack
+
+          # Verify it's on PATH
+          which slack
+          slack --version || true
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+
+      - name: Assert ok is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true, got '$OK'"
+            exit 1
+          fi
+          echo "PASS: ok=true"
+
+      - name: Assert response contains expected output
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected non-empty response"
+            exit 1
+          fi
+          echo "PASS: response is non-empty"
+
+      - name: Assert time is a valid unix epoch
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected non-empty time"
+            exit 1
+          fi
+          if ! echo "$TIME" | grep -qE '^[0-9]+$'; then
+            echo "FAIL: time '$TIME' is not a numeric unix epoch"
+            exit 1
+          fi
+          echo "PASS: time is a valid unix epoch"
