@@ -10,25 +10,26 @@
 
 **Harden Agent Version:** `2`
 
-Action **slackapi--slack-github-action/v3.0.3** was hardened automatically. 2 finding(s) were identified and resolved across 3 iteration(s).
+Action **slackapi--slack-github-action/v3.0.3** was hardened automatically. 2 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### unsafe-shell (severity: high)
 
-The 'Bash Install Slack CLI' step pipes a remotely fetched shell script directly to bash without first downloading and verifying it: `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` (and the else branch `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`). If the remote URL is compromised or subject to a MITM attack, arbitrary code executes on the runner immediately.
+The 'Bash Install Slack CLI' step in cli/action.yml pipes a remote install script directly to bash without first downloading and verifying it: `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh | bash -s`. This allows a compromised or MITM'd remote server to execute arbitrary code on the runner. The script should be downloaded to a temporary file, its integrity verified (e.g. via checksum), and then executed separately.
 
 Locations:
 
-- `cli/action.yml:75`
+- `cli/action.yml:68`
+- `cli/action.yml:70`
 
 ### unsafe-shell (severity: high)
 
-The 'Pwsh Install Slack CLI' step uses the PowerShell equivalent of curl|bash: `irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex`. This fetches a remote PowerShell script and immediately executes it via Invoke-Expression, with no download-then-verify step.
+The 'Pwsh Install Slack CLI' step in cli/action.yml uses PowerShell's `irm ... | iex` idiom (`irm https://downloads.slack-edge.com/slack-cli/install-windows.ps1 | iex`), which is the PowerShell equivalent of `curl | bash` — it downloads and immediately executes a remote script without any integrity verification. A compromised or MITM'd remote server could execute arbitrary code on the runner.
 
 Locations:
 
-- `cli/action.yml:93`
+- `cli/action.yml:85`
 
 ## Iteration Notes
 
@@ -38,17 +39,9 @@ Locations:
 
 **Notes:**
 
-Fixed two unsafe-shell findings in hardened/action/cli/action.yml:
-1. Bash Install Slack CLI step: Replaced `curl ... | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl ... | bash -s` with a download-then-execute pattern: curl downloads install.sh to a mktemp file, then bash executes it directly. Dropped `-s` and `--` from the invocation (they were shell stdin-reading flags, not script arguments).
-2. Pwsh Install Slack CLI step: Replaced the `else` branch `irm ... | iex` with a download-then-execute pattern using `Invoke-WebRequest -OutFile` followed by `& $installer`. Both branches now share the same download step, with conditional invocation based on whether SLACK_CLI_VERSION is set. Temp file is cleaned up with Remove-Item afterward.
-
-### Iteration 2
-
-**Fixes applied:** script-injection, github-env-injection
-
-**Notes:**
-
-Fixed cli/action.yml 'Bash Run Slack CLI command' step: (1) script-injection: replaced unquoted string-based args variable with a bash array; SLACK_COMMAND is tokenized via xargs (quote-aware, handles embedded quotes) into array elements, SLACK_TOKEN is appended as separate quoted array elements '--token' and "$SLACK_TOKEN", and the command is invoked as `slack "${args[@]}"` keeping argument boundaries intact. (2) github-env-injection: replaced the static 'SLACKCLIEOF' heredoc delimiter with a randomly generated one `SLACKCLIEOF_$(openssl rand -hex 16)` so attacker-controlled output cannot contain the exact delimiter and inject additional key=value pairs into GITHUB_OUTPUT; also switched from echo to printf for writing output values.
+Fixed both unsafe-shell findings in cli/action.yml:
+1. Bash Install Slack CLI (lines 68/70): Replaced `curl ... | bash -s -- -v "$SLACK_CLI_VERSION"` and `curl ... | bash -s` with: download script to a mktemp file, then execute with `bash "$INSTALL_SCRIPT" -v "$SLACK_CLI_VERSION"` or `bash "$INSTALL_SCRIPT"`. Dropped the `--` (it was the shell's stdin option terminator, not a script argument). Temp file is removed after execution.
+2. Pwsh Install Slack CLI (line 85): Replaced `irm ... | iex` with `Invoke-WebRequest` to download to a temp file, then `& $installer` (with or without `-v` flag). The download is now done once before the conditional, and the temp file is cleaned up with `Remove-Item` afterward.
 
 ### Iteration 1
 
@@ -56,5 +49,10 @@ Fixed cli/action.yml 'Bash Run Slack CLI command' step: (1) script-injection: re
 
 **Notes:**
 
-Fixed script injection vulnerability in the 'Pwsh Run Slack CLI command' step of cli/action.yml. The original code built a string by interpolating $env:SLACK_COMMAND and $env:SLACK_TOKEN, then split on spaces with .Split(' '), which allowed injection via spaces or PowerShell metacharacters in the input. The fix uses PowerShell's own AST parser ([System.Management.Automation.Language.Parser]::ParseInput) to safely tokenize SLACK_COMMAND into an array of arguments, then appends --skip-update, --verbose (conditionally), and --token + SLACK_TOKEN (conditionally) as separate array elements. The final invocation uses PowerShell splatting (@cliArgs) so each element is passed as a distinct argument to slack, preventing argument injection.
+Fixed the 'Bash Run Slack CLI command' step in cli/action.yml:
+1. SLACK_COMMAND (a whitespace-separated list input expanded as env var) is now tokenized into a bash array using `read -r -d '' -a args <<< "$SLACK_COMMAND" || true`, matching upstream's whitespace-splitting behavior without xargs quote-awareness.
+2. Additional flags (--skip-update, --verbose, --token) are appended to the array with `args+=(...)` keeping each token separate.
+3. SLACK_TOKEN is now double-quoted as `"$SLACK_TOKEN"` when passed as the --token value.
+4. The command is invoked as `slack "${args[@]}"` to preserve argument boundaries.
+5. Also fixed the fixed heredoc delimiter SLACKCLIEOF by replacing it with a random delimiter from /dev/urandom to prevent heredoc injection.
 

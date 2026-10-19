@@ -14,19 +14,21 @@ jobs:
           token: "xoxb-fake-token-for-delimiter-test"
           payload-delimiter: "#"
           payload: |
-            channel: "C0000000000"
-            text: "test message with delimiter"
+            channel=C0000000000
+            text=Hello from delimiter test
       - name: Assert action ran with payload-delimiter input
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "outcome: $OUTCOME"
           echo "ok: $OK"
+          echo "response: $RESPONSE"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with payload-delimiter"
+            echo "PASS: action succeeded with payload-delimiter input"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected with fake token)"
+            echo "PASS: action failed gracefully (expected without valid token)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

@@ -10,23 +10,23 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          api: "https://slack.example.invalid/api/"
-          method: "chat.postMessage"
+          api: "https://slack.com/api/"
+          method: "api.test"
           token: "xoxb-fake-token-for-api-test"
-          payload: |
-            channel: "C0000000000"
-            text: "test message"
+          payload: '{"foo": "bar"}'
       - name: Assert action ran with custom api input
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "outcome: $OUTCOME"
           echo "ok: $OK"
+          echo "response: $RESPONSE"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with custom api"
+            echo "PASS: action succeeded with custom api input"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected with fake api/token)"
+            echo "PASS: action failed gracefully (expected without valid token)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

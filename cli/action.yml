@@ -50,6 +50,7 @@ runs:
         else
           echo "exists=false" >> "$GITHUB_OUTPUT"
         fi
+
     - name: Cache Slack CLI
       if: steps.slack-cli-check.outputs.exists != 'true' && inputs.version != ''
       id: cache-cli
@@ -58,17 +59,22 @@ runs:
         path: |
           ${{ runner.os == 'Windows' && '~/AppData/Local/slack-cli' || '~/.slack/bin' }}
         key: slack-cli-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
     - name: Bash Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os != 'Windows'
       shell: bash
       run: echo "$HOME/.slack/bin" >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
     - name: Pwsh Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os == 'Windows'
       shell: pwsh
       run: Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\AppData\Local\slack-cli\bin" # zizmor: ignore[github-env]
+
     - name: Bash Install Slack CLI
       if: >-
-        steps.slack-cli-check.outputs.exists != 'true' && steps.cache-cli.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        steps.slack-cli-check.outputs.exists != 'true' &&
+        steps.cache-cli.outputs.cache-hit != 'true' &&
+        runner.os != 'Windows'
       shell: bash
       run: |
         INSTALL_SCRIPT="$(mktemp)"
@@ -81,21 +87,25 @@ runs:
         rm -f "$INSTALL_SCRIPT"
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
+
     - name: Pwsh Install Slack CLI
       if: >-
-        steps.slack-cli-check.outputs.exists != 'true' && steps.cache-cli.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        steps.slack-cli-check.outputs.exists != 'true' &&
+        steps.cache-cli.outputs.cache-hit != 'true' &&
+        runner.os == 'Windows'
       shell: pwsh
       run: |
         $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
         Invoke-WebRequest -Uri "https://downloads.slack-edge.com/slack-cli/install-windows.ps1" -OutFile $installer
         if ($env:SLACK_CLI_VERSION) {
-          & $installer -v "$env:SLACK_CLI_VERSION"
+          & $installer -v $env:SLACK_CLI_VERSION
         } else {
           & $installer
         }
-        Remove-Item -Force $installer
+        Remove-Item -Path $installer -Force -ErrorAction SilentlyContinue
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
+
     - name: Bash Run Slack CLI command
       id: slack-cli-unix
       if: runner.os != 'Windows'
@@ -105,8 +115,9 @@ runs:
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
         args=()
-        while IFS= read -r -d '' t; do args+=("$t"); done \
-          < <(printf '%s' "$SLACK_COMMAND" | xargs printf '%s\0')
+        if [ -n "$SLACK_COMMAND" ]; then
+          read -r -d '' -a args <<< "$SLACK_COMMAND" || true
+        fi
         args+=(--skip-update)
         if [ "$RUNNER_DEBUG" = "1" ]; then
           args+=(--verbose)
@@ -130,6 +141,7 @@ runs:
         if [ $exit_code -ne 0 ]; then
           exit $exit_code
         fi
+
     - name: Pwsh Run Slack CLI command
       id: slack-cli-windows
       if: runner.os == 'Windows'
@@ -138,21 +150,16 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        $cliArgs = [System.Collections.Generic.List[string]]::new()
-        foreach ($part in $env:SLACK_COMMAND -split ' ') {
-          if ($part -ne '') { $cliArgs.Add($part) }
-        }
-        $cliArgs.Add("--skip-update")
+        $cliArgs = "$env:SLACK_COMMAND --skip-update"
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs.Add("--verbose")
+          $cliArgs = "$cliArgs --verbose"
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs.Add("--token")
-          $cliArgs.Add("$env:SLACK_TOKEN")
+          $cliArgs = "$cliArgs --token $env:SLACK_TOKEN"
         }
 
         $outputFile = New-TemporaryFile
-        slack @cliArgs 2>&1 | Tee-Object -FilePath $outputFile.FullName
+        slack $cliArgs.Split(' ') 2>&1 | Tee-Object -FilePath $outputFile.FullName
         $exit_code = $LASTEXITCODE
         $output = Get-Content $outputFile.FullName -Raw
 

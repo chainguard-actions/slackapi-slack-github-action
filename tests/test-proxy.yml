@@ -10,23 +10,23 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          method: "chat.postMessage"
+          method: "api.test"
           token: "xoxb-fake-token-for-proxy-test"
-          proxy: "https://proxy.example.invalid:8080"
-          payload: |
-            channel: "C0000000000"
-            text: "test message via proxy"
+          proxy: "https://proxy.example.com:8080"
+          payload: '{"foo": "bar"}'
       - name: Assert action ran with proxy input
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "outcome: $OUTCOME"
           echo "ok: $OK"
+          echo "response: $RESPONSE"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with proxy"
+            echo "PASS: action succeeded with proxy input"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected with fake proxy/token)"
+            echo "PASS: action failed gracefully (expected without valid token/proxy)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
