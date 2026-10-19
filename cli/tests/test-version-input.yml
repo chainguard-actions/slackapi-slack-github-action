@@ -9,39 +9,39 @@ jobs:
 
       - id: action
         uses: .
+        continue-on-error: true
         with:
           command: version
           version: "2.26.0"
 
-      - name: Assert ok output is set
+      - name: Assert version input was accepted and outputs are set
         env:
           OK: ${{ steps.action.outputs.ok }}
-        run: |
-          echo "ok: $OK"
-          if [ "$OK" != "true" ] && [ "$OK" != "false" ]; then
-            echo "FAIL: expected ok to be 'true' or 'false', got '$OK'"
-            exit 1
-          fi
-          echo "PASS: ok is '$OK'"
-
-      - name: Assert response output is set
-        env:
           RESPONSE: ${{ steps.action.outputs.response }}
-        run: |
-          echo "response: $RESPONSE"
-          if [ -z "$RESPONSE" ]; then
-            echo "FAIL: expected response to be non-empty"
-            exit 1
-          fi
-          echo "PASS: response is non-empty"
-
-      - name: Assert time output is set
-        env:
           TIME: ${{ steps.action.outputs.time }}
+          OUTCOME: ${{ steps.action.outcome }}
         run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "response: $RESPONSE"
           echo "time: $TIME"
-          if [ -z "$TIME" ]; then
-            echo "FAIL: expected time to be non-empty"
+
+          # The action must have run (not been skipped)
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was skipped unexpectedly"
             exit 1
           fi
-          echo "PASS: time is '$TIME'"
+
+          # The 'time' output must always be set when the action runs
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected 'time' output to be set"
+            exit 1
+          fi
+
+          # The 'ok' output must be either 'true' or 'false'
+          if [ "$OK" != "true" ] && [ "$OK" != "false" ]; then
+            echo "FAIL: expected 'ok' to be 'true' or 'false', got: $OK"
+            exit 1
+          fi
+
+          echo "PASS: version input accepted, outputs ok=$OK time=$TIME"

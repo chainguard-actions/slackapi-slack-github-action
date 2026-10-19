@@ -50,6 +50,7 @@ runs:
         else
           echo "exists=false" >> "$GITHUB_OUTPUT"
         fi
+
     - name: Cache Slack CLI
       if: steps.slack-cli-check.outputs.exists != 'true' && inputs.version != ''
       id: cache-cli
@@ -58,17 +59,22 @@ runs:
         path: |
           ${{ runner.os == 'Windows' && '~/AppData/Local/slack-cli' || '~/.slack/bin' }}
         key: slack-cli-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
     - name: Bash Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os != 'Windows'
       shell: bash
       run: echo "$HOME/.slack/bin" >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+
     - name: Pwsh Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os == 'Windows'
       shell: pwsh
       run: Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\AppData\Local\slack-cli\bin" # zizmor: ignore[github-env]
+
     - name: Bash Install Slack CLI
       if: >-
-        steps.slack-cli-check.outputs.exists != 'true' && steps.cache-cli.outputs.cache-hit != 'true' && runner.os != 'Windows'
+        steps.slack-cli-check.outputs.exists != 'true' &&
+        steps.cache-cli.outputs.cache-hit != 'true' &&
+        runner.os != 'Windows'
       shell: bash
       run: |
         INSTALL_SCRIPT="$(mktemp)"
@@ -81,9 +87,12 @@ runs:
         rm -f "$INSTALL_SCRIPT"
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
+
     - name: Pwsh Install Slack CLI
       if: >-
-        steps.slack-cli-check.outputs.exists != 'true' && steps.cache-cli.outputs.cache-hit != 'true' && runner.os == 'Windows'
+        steps.slack-cli-check.outputs.exists != 'true' &&
+        steps.cache-cli.outputs.cache-hit != 'true' &&
+        runner.os == 'Windows'
       shell: pwsh
       run: |
         $installer = Join-Path $env:TEMP "install-slack-cli.ps1"
@@ -93,9 +102,9 @@ runs:
         } else {
           & $installer
         }
-        Remove-Item -Force $installer
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
+
     - name: Bash Run Slack CLI command
       id: slack-cli-unix
       if: runner.os != 'Windows'
@@ -104,33 +113,33 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        cmd_args=()
+        args=()
         if [ -n "$SLACK_COMMAND" ]; then
-          while IFS= read -r -d '' t; do cmd_args+=("$t"); done \
-            < <(printf '%s' "$SLACK_COMMAND" | xargs printf '%s\0')
+          read -r -d '' -a args <<< "$SLACK_COMMAND" || true
         fi
-        cmd_args+=(--skip-update)
+        args+=(--skip-update)
         if [ "$RUNNER_DEBUG" = "1" ]; then
-          cmd_args+=(--verbose)
+          args+=(--verbose)
         fi
         if [ -n "$SLACK_TOKEN" ]; then
-          cmd_args+=(--token "$SLACK_TOKEN")
+          args+=(--token "$SLACK_TOKEN")
         fi
 
         set +e
-        output=$(slack "${cmd_args[@]}" 2>&1 | tee /dev/stderr)
+        output=$(slack "${args[@]}" 2>&1 | tee /dev/stderr)
         exit_code=$?
         set -e
 
         echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
         echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-        EOF_DELIMITER="SLACKCLIEOF_$(openssl rand -hex 16)"
-        printf 'response<<%s\n%s\n%s\n' "$EOF_DELIMITER" "$output" "$EOF_DELIMITER" >> "$GITHUB_OUTPUT"
+        EOF="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+        { echo "response<<$EOF"; echo "$output"; echo "$EOF"; } >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then
           exit $exit_code
         fi
+
     - name: Pwsh Run Slack CLI command
       id: slack-cli-windows
       if: runner.os == 'Windows'
@@ -139,28 +148,26 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        $cliArgs = $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ -ne '' }
-        $cliArgs += '--skip-update'
+        $cliArgs = "$env:SLACK_COMMAND --skip-update"
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs += '--verbose'
+          $cliArgs = "$cliArgs --verbose"
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs += '--token'
-          $cliArgs += $env:SLACK_TOKEN
+          $cliArgs = "$cliArgs --token $env:SLACK_TOKEN"
         }
 
         $outputFile = New-TemporaryFile
-        slack @cliArgs 2>&1 | Tee-Object -FilePath $outputFile.FullName
+        slack $cliArgs.Split(' ') 2>&1 | Tee-Object -FilePath $outputFile.FullName
         $exit_code = $LASTEXITCODE
         $output = Get-Content $outputFile.FullName -Raw
 
         "ok=$( if ($exit_code -eq 0) { 'true' } else { 'false' } )" >> $env:GITHUB_OUTPUT
         "time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_OUTPUT
 
-        $eofDelimiter = "SLACKCLIEOF_" + [System.Guid]::NewGuid().ToString("N")
-        "response<<$eofDelimiter" >> $env:GITHUB_OUTPUT
+        $eof = "EOF_" + [guid]::NewGuid().ToString('N')
+        "response<<$eof" >> $env:GITHUB_OUTPUT
         $output >> $env:GITHUB_OUTPUT
-        $eofDelimiter >> $env:GITHUB_OUTPUT
+        $eof >> $env:GITHUB_OUTPUT
 
         if ($exit_code -ne 0) {
           exit $exit_code

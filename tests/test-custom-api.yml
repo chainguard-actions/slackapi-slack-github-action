@@ -1,4 +1,4 @@
-name: Test custom API input
+name: Test custom API URL input
 on:
   workflow_dispatch:
 jobs:
@@ -12,23 +12,25 @@ jobs:
         with:
           api: "https://slack.com/api/"
           method: "api.test"
-          token: "xoxb-fake-token-for-api-input-test"
+          token: "xoxb-fake-token-for-testing"
           payload: '{"foo": "bar"}'
       - name: Assert action ran with custom api input
         env:
           OUTCOME: ${{ steps.action.outcome }}
-          TIME: ${{ steps.action.outputs.time }}
+          OK: ${{ steps.action.outputs.ok }}
+          RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "outcome: $OUTCOME"
-          echo "time: $TIME"
+          echo "ok: $OK"
+          echo "response: $RESPONSE"
           if [ "$OUTCOME" = "success" ]; then
-            if [ -z "$TIME" ]; then
-              echo "FAIL: action succeeded but time output is empty"
+            if [ -z "$RESPONSE" ]; then
+              echo "FAIL: action succeeded but response output is empty"
               exit 1
             fi
-            echo "PASS: action succeeded with custom api input, time=$TIME"
+            echo "PASS: action succeeded with custom api input, response=$RESPONSE"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected without valid credentials)"
+            echo "PASS: action failed gracefully (expected with fake token)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
