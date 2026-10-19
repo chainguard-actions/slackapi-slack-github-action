@@ -1,0 +1,63 @@
+name: Test with version input - specific CLI version requested
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake slack binary on PATH
+        run: |
+          mkdir -p "$HOME/.slack/bin"
+          cat > "$HOME/.slack/bin/slack" << 'EOF'
+          #!/bin/sh
+          echo "Slack CLI v2.26.0 fake"
+          exit 0
+          EOF
+          chmod +x "$HOME/.slack/bin/slack"
+          echo "$HOME/.slack/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "version"
+          version: "2.26.0"
+
+      - name: Assert ok is true
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "true" ]; then
+            echo "FAIL: expected ok=true but got '$OK'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert response is non-empty
+        env:
+          RESPONSE: ${{ steps.action.outputs.response }}
+        run: |
+          echo "response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "FAIL: expected non-empty response"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert time is a valid epoch timestamp
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time to be set"
+            exit 1
+          fi
+          # Verify it looks like a Unix epoch (numeric, > 0)
+          if ! echo "$TIME" | grep -qE '^[0-9]+$'; then
+            echo "FAIL: time '$TIME' does not look like a Unix epoch"
+            exit 1
+          fi
+          echo "PASS: time is a valid epoch timestamp"

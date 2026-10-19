@@ -1,0 +1,58 @@
+name: Test command failure - ok output is false when command fails
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake slack binary that exits with error
+        run: |
+          mkdir -p "$HOME/.slack/bin"
+          cat > "$HOME/.slack/bin/slack" << 'EOF'
+          #!/bin/sh
+          echo "Error: command failed"
+          exit 1
+          EOF
+          chmod +x "$HOME/.slack/bin/slack"
+          echo "$HOME/.slack/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          command: "deploy"
+        continue-on-error: true
+
+      - name: Assert step outcome is failure
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected step to fail but got outcome='$OUTCOME'"
+            exit 1
+          fi
+          echo "PASS: step correctly failed"
+
+      - name: Assert ok is false
+        env:
+          OK: ${{ steps.action.outputs.ok }}
+        run: |
+          echo "ok: $OK"
+          if [ "$OK" != "false" ]; then
+            echo "FAIL: expected ok=false but got '$OK'"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert time is still set on failure
+        env:
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "time: $TIME"
+          if [ -z "$TIME" ]; then
+            echo "FAIL: expected time to be set even on failure"
+            exit 1
+          fi
+          echo "PASS"

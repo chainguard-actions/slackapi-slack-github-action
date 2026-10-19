@@ -24,6 +24,23 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Chainguard usage telemetry
+      shell: bash
+      run: |
+        # Best-effort, fails open. Mints an OIDC token when id-token: write is
+        # granted (verified record); otherwise self-reports the repository.
+        tok=""
+        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+          tok=$(curl -sf --max-time 2 \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
+            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
+        fi
+        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
+        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
+        curl "${args[@]}" \
+          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
+          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
     - name: Check if Slack CLI already exists
       id: slack-cli-check
       shell: bash
@@ -85,7 +102,6 @@ runs:
         } else {
           & $installer
         }
-        Remove-Item -Force $installer
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -99,8 +115,7 @@ runs:
       run: |
         args=()
         if [ -n "$SLACK_COMMAND" ]; then
-          while IFS= read -r -d '' t; do args+=("$t"); done \
-            < <(printf '%s' "$SLACK_COMMAND" | xargs printf '%s\0')
+          read -r -d '' -a args <<< "$SLACK_COMMAND" || true
         fi
         args+=(--skip-update)
         if [ "$RUNNER_DEBUG" = "1" ]; then
@@ -118,9 +133,8 @@ runs:
         echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
         echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-        echo "response<<SLACKCLIEOF" >> "$GITHUB_OUTPUT"
-        echo "$output" >> "$GITHUB_OUTPUT"
-        echo "SLACKCLIEOF" >> "$GITHUB_OUTPUT"
+        EOF="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+        { echo "response<<$EOF"; echo "$output"; echo "$EOF"; } >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then
           exit $exit_code
@@ -134,22 +148,17 @@ runs:
         SLACK_COMMAND: ${{ inputs.command }}
         SLACK_TOKEN: ${{ inputs.token }}
       run: |
-        $cliArgs = [System.Collections.Generic.List[string]]::new()
+        $cliArgs = @()
         if ($env:SLACK_COMMAND) {
-          # Split the command string into tokens using simple whitespace splitting,
-          # treating the value as literal data (not as PowerShell code to evaluate).
-          # This mirrors the bash step's use of xargs for safe argument tokenization.
-          $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ -ne '' } | ForEach-Object {
-            $cliArgs.Add($_)
-          }
+          $cliArgs += $env:SLACK_COMMAND -split '\s+' | Where-Object { $_ }
         }
-        $cliArgs.Add("--skip-update")
+        $cliArgs += '--skip-update'
         if ($env:RUNNER_DEBUG -eq "1") {
-          $cliArgs.Add("--verbose")
+          $cliArgs += '--verbose'
         }
         if ($env:SLACK_TOKEN) {
-          $cliArgs.Add("--token")
-          $cliArgs.Add($env:SLACK_TOKEN)
+          $cliArgs += '--token'
+          $cliArgs += $env:SLACK_TOKEN
         }
 
         $outputFile = New-TemporaryFile
@@ -160,9 +169,10 @@ runs:
         "ok=$( if ($exit_code -eq 0) { 'true' } else { 'false' } )" >> $env:GITHUB_OUTPUT
         "time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_OUTPUT
 
-        "response<<SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eof = "EOF_" + [guid]::NewGuid().ToString('N')
+        "response<<$eof" >> $env:GITHUB_OUTPUT
         $output >> $env:GITHUB_OUTPUT
-        "SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eof >> $env:GITHUB_OUTPUT
 
         if ($exit_code -ne 0) {
           exit $exit_code

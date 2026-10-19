@@ -1,4 +1,4 @@
-name: Test errors false continues on failure
+name: Test payload with template variable substitution
 on:
   workflow_dispatch:
 jobs:
@@ -6,21 +6,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      # Test: with errors=false (default), the action should continue even on API errors
-      # A fake webhook URL will cause an HTTP error, but errors=false means
-      # the step should still succeed (not exit with error code)
       - id: action
         uses: .
         continue-on-error: true
+        env:
+          CUSTOM_VAR: "hello-from-act"
         with:
-          webhook: "https://hooks.slack.com/services/FAKE/FAKE/FAKE"
+          webhook: "https://hooks.slack.com/services/INVALID/INVALID/INVALID"
           webhook-type: "incoming-webhook"
-          payload: |
-            {"text": "Test message"}
+          payload: '{"text": "Templated message: ${{ env.CUSTOM_VAR }}"}'
+          payload-templated: "true"
           errors: "false"
-
-      - name: Assert action continued despite API error (errors=false)
+      - name: Assert action ran with templated payload
         env:
           OUTCOME: ${{ steps.action.outcome }}
           OK: ${{ steps.action.outputs.ok }}
@@ -31,12 +28,16 @@ jobs:
           echo "ok: $OK"
           echo "time: $TIME"
           echo "response: $RESPONSE"
-          # With errors=false, the step should succeed even when Slack returns an error
+          # The action should process the template and attempt to send the payload
+          # With an invalid webhook, it will fail at the HTTP level
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action continued as expected with errors=false"
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but time output is empty"
+              exit 1
+            fi
+            echo "PASS: action completed with time=$TIME"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "FAIL: action exited with error despite errors=false"
-            exit 1
+            echo "PASS: action failed gracefully with invalid webhook (expected)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

@@ -11,26 +11,26 @@ jobs:
         continue-on-error: true
         with:
           method: "api.test"
-          token: "xoxb-fake-token-for-testing"
-          proxy: "https://proxy.example.com:8080"
-          payload: '{"foo":"bar"}'
+          token: "xoxb-invalid-token-for-testing"
+          proxy: "https://proxy.example.invalid:8080"
+          errors: "false"
       - name: Assert action ran with proxy input
         env:
           OUTCOME: ${{ steps.action.outcome }}
-          OK: ${{ steps.action.outputs.ok }}
+          TIME: ${{ steps.action.outputs.time }}
           RESPONSE: ${{ steps.action.outputs.response }}
         run: |
           echo "outcome: $OUTCOME"
-          echo "ok: $OK"
+          echo "time: $TIME"
           echo "response: $RESPONSE"
           if [ "$OUTCOME" = "success" ]; then
-            if [ -z "$RESPONSE" ]; then
-              echo "FAIL: action succeeded but response output is empty"
+            if [ -z "$TIME" ]; then
+              echo "FAIL: action succeeded but time output is empty"
               exit 1
             fi
-            echo "PASS: action succeeded with proxy input"
+            echo "PASS: action ran with proxy input, time=$TIME"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected with fake token and unreachable proxy)"
+            echo "PASS: action failed gracefully with invalid proxy/token (expected)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

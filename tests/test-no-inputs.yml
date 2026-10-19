@@ -1,0 +1,33 @@
+name: Test action with no inputs (missing configuration)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        continue-on-error: true
+        # No inputs provided - action should fail gracefully
+      - name: Assert action failed gracefully with no inputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          OK: ${{ steps.action.outputs.ok }}
+          TIME: ${{ steps.action.outputs.time }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "ok: $OK"
+          echo "time: $TIME"
+          # Without any inputs (no webhook, no method, no token), the action
+          # should fail with a configuration error
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected with no inputs"
+          elif [ "$OUTCOME" = "success" ]; then
+            # If it somehow succeeded, that's unexpected but not necessarily wrong
+            echo "WARN: action succeeded with no inputs; ok=$OK, time=$TIME"
+            echo "PASS: action completed (may have no-op behavior)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
