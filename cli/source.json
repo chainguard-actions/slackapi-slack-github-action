@@ -1,0 +1,12 @@
+{
+  "owner": "slackapi",
+  "repo": "slack-github-action",
+  "version": "v3.0.5",
+  "path": "cli",
+  "commit_sha": "0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc",
+  "url": "https://github.com/slackapi/slack-github-action",
+  "policy_sha": "374911c4be584df24e6da57af2d990570ef0f859",
+  "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
+  "test_agent_version": "2",
+  "harden_agent_version": "2"
+}
