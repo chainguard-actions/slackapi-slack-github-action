@@ -63,12 +63,16 @@ runs:
     - name: Bash Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os != 'Windows'
       shell: bash
-      run: echo "$HOME/.slack/bin" >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+      run: |
+        safe_path=$(printf '%s' "$HOME/.slack/bin" | tr -d '\n\r')
+        printf '%s\n' "$safe_path" >> "$GITHUB_PATH"
 
     - name: Pwsh Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os == 'Windows'
       shell: pwsh
-      run: Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\AppData\Local\slack-cli\bin" # zizmor: ignore[github-env]
+      run: |
+        $safePath = "$env:USERPROFILE\AppData\Local\slack-cli\bin" -replace "[`r`n]", ""
+        Add-Content -Path $env:GITHUB_PATH -Value $safePath
 
     - name: Bash Install Slack CLI
       if: >-
@@ -77,14 +81,18 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        INSTALL_SCRIPT="$(mktemp)"
-        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$INSTALL_SCRIPT"
-        if [ -n "$SLACK_CLI_VERSION" ]; then
-          bash "$INSTALL_SCRIPT" -v "$SLACK_CLI_VERSION"
-        else
-          bash "$INSTALL_SCRIPT"
+        installer="$(mktemp)"
+        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
+        if [ ! -s "$installer" ]; then
+          echo "Failed to download Slack CLI installer" >&2
+          exit 1
         fi
-        rm -f "$INSTALL_SCRIPT"
+        if [ -n "$SLACK_CLI_VERSION" ]; then
+          bash "$installer" -v "$SLACK_CLI_VERSION"
+        else
+          bash "$installer"
+        fi
+        rm -f "$installer"
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
