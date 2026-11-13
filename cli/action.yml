@@ -63,12 +63,16 @@ runs:
     - name: Bash Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os != 'Windows'
       shell: bash
-      run: echo "$HOME/.slack/bin" >> "$GITHUB_PATH" # zizmor: ignore[github-env]
+      run: |
+        safe_path=$(printf '%s' "$HOME/.slack/bin" | tr -d '\n\r')
+        echo "$safe_path" >> "$GITHUB_PATH"
 
     - name: Pwsh Add Slack CLI to PATH
       if: steps.slack-cli-check.outputs.exists != 'true' && runner.os == 'Windows'
       shell: pwsh
-      run: Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\AppData\Local\slack-cli\bin" # zizmor: ignore[github-env]
+      run: |
+        $safeProfile = $env:USERPROFILE -replace '[\r\n]', ''
+        Add-Content -Path $env:GITHUB_PATH -Value "$safeProfile\AppData\Local\slack-cli\bin"
 
     - name: Bash Install Slack CLI
       if: >-
@@ -77,14 +81,14 @@ runs:
         runner.os != 'Windows'
       shell: bash
       run: |
-        INSTALL_SCRIPT="$(mktemp)"
-        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$INSTALL_SCRIPT"
+        installer="$(mktemp)"
+        curl -fsSL https://downloads.slack-edge.com/slack-cli/install.sh -o "$installer"
         if [ -n "$SLACK_CLI_VERSION" ]; then
-          bash "$INSTALL_SCRIPT" -v "$SLACK_CLI_VERSION"
+          bash "$installer" -v "$SLACK_CLI_VERSION"
         else
-          bash "$INSTALL_SCRIPT"
+          bash "$installer"
         fi
-        rm -f "$INSTALL_SCRIPT"
+        rm -f "$installer"
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -102,7 +106,6 @@ runs:
         } else {
           & $installer
         }
-        Remove-Item -Path $installer -Force -ErrorAction SilentlyContinue
       env:
         SLACK_CLI_VERSION: ${{ inputs.version }}
 
@@ -133,10 +136,8 @@ runs:
 
         echo "ok=$([ $exit_code -eq 0 ] && echo 'true' || echo 'false')" >> "$GITHUB_OUTPUT"
         echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
-
-        echo "response<<SLACKCLIEOF" >> "$GITHUB_OUTPUT"
-        echo "$output" >> "$GITHUB_OUTPUT"
-        echo "SLACKCLIEOF" >> "$GITHUB_OUTPUT"
+        EOF="EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+        { echo "response<<$EOF"; echo "$output"; echo "$EOF"; } >> "$GITHUB_OUTPUT"
 
         if [ $exit_code -ne 0 ]; then
           exit $exit_code
@@ -166,9 +167,10 @@ runs:
         "ok=$( if ($exit_code -eq 0) { 'true' } else { 'false' } )" >> $env:GITHUB_OUTPUT
         "time=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_OUTPUT
 
-        "response<<SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eof = "EOF_" + [guid]::NewGuid().ToString('N')
+        "response<<$eof" >> $env:GITHUB_OUTPUT
         $output >> $env:GITHUB_OUTPUT
-        "SLACKCLIEOF" >> $env:GITHUB_OUTPUT
+        $eof >> $env:GITHUB_OUTPUT
 
         if ($exit_code -ne 0) {
           exit $exit_code
